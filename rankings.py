@@ -2,6 +2,7 @@
 
 # when player 1 moves to team A from B, team A ELO becomes 1/5 * team_B + 4/5 * team_A
 # could also add difference in team B ELO since player 1 joined the team (* some constant)
+# (this method will inflate ELO though if all players move to same, but new, team)
 # also could use stats to decide how important player 1 was to team B, however it can be hard to compare players in different positions
 
 # initial rankings can be based off the last international tournament before data begins
@@ -15,8 +16,8 @@
 # then set every team within a region (who didn't attend the tournament) to a specific value
 # e.g., LPL = 1000
 # this value can either be arbitrarily chosen depending on how strong I believe the region was at that time
-# or could be, e.g., 400 ELO lower than the lowest ranked team from that region that attended the tournament
-# could also the regional teams by the playoffs before tournament, but might be more effort or little change
+# or could be, e.g., 50 ELO lower than the lowest ranked team from that region that attended the tournament
+# could also rank the regional teams by the playoffs before tournament, but might be more effort or little change
 
 # store every teams ELO throughout time (set to NaN if the team does not exist) for ELO difference to be calculated
 # may need to instead store ELO at certain times (e.g., end of each month) if this is too much data
@@ -30,7 +31,7 @@ import json
 from datetime import datetime
 
 # find earliest data
-with open("data/esports-data/tournaments.json", "r") as json_file:
+with open("data/esports-data/tournaments.json", "r", encoding='utf-8') as json_file:
     tournaments_data = json.load(json_file)
 
 earliest_date = datetime(2099, 1, 1).date()
@@ -73,11 +74,73 @@ rankings = {
     "flamengo-esports": 650
 }
 
+from bs4 import BeautifulSoup
+from urllib.parse import unquote
+import requests
+
+# scrape lol.fandom.com for players in Worlds 2019
+
+subject = '2019_Season_World_Championship/Player_Statistics'
+
+url = 'https://lol.fandom.com/api.php'
+params = {
+            'action': 'parse',
+            'page': subject,
+            'format': 'json',
+            'prop':'text',
+            'redirects':''
+        }
+
+data = requests.get(url, params=params).json()
+
+soup = BeautifulSoup(data['parse']['text']['*'],'html.parser')
+
+table = soup.find('table',{'class':'wikitable sortable spstats plainlinks hoverable-rows'})
+
+trs = table.find_all('tr')
+
+
+with open("data/esports-data/teams.json", "r", encoding='utf-8') as json_teams:
+    teams_data = json.load(json_teams)
+# encoding is enforced below otherwise json throws an error
+# likely due to special characters in names
+with open("data/esports-data/players.json", "r", encoding='utf-8') as json_players:
+    players_data = json.load(json_players)
+teams = {}
+for tr in trs[5:]: # first few trs are not players
+    # need to then find team in teams.json and make sure there are no errors
+    # also need to deal with teams changing name
+    api_team = tr.find('td',{'class':'spstats-team'}).find('a')['title']
+    api_player = tr.find('td',{'class':'spstats-player'}).text
+
+    # try and find team in teams.json then add to teams (if not already done)
+    for team in teams_data:
+        if team['name'].lower() == api_team.lower():
+            team_id = team['team_id']
+            if team_id not in teams:
+                teams[team_id] = []
+            break
+
+    # try and find player in players.json then add to team in teams
+    # assuming we can't trust home_team_id as this will change if they change teams
+    for player in players_data:
+        if player['handle'] == api_player:
+            teams[team_id].append(player['player_id'])
+
+
 # fill in rest of teams' ELO according to ELO of region's lowest Worlds finish
 
 # build rosters at time of Worlds
 
 # calculate new ELOs as players move teams
+
+# how to incorporate a brand new player without ELO?
+# standard amount for particular region?
+
+# treat subs who never play a game as new players (i.e., don't give them ELO)
+
+# teams such as T1 have times when players are frequently being subbed out
+# therefore need to keep track of every players last known ELO
 
 # will need to check each game that the same players are still in the team, therefore
 # must keep track of roster and whether a team is active
@@ -86,3 +149,8 @@ rankings = {
 # and calculate the ELO of the new team appropriately
 # since all players were on Lowkey Esports this should just equal the new ELO
 # will then need to set Lowkey Esports to inactive and Team Secret to active
+
+# can move teams into a pandas dataframe
+# each entry is a team with its name, current players, last played game, ELO, etc.
+# whether a team is active or not can be calculated when needed by checking if
+# a team has at least 5 players or if its most recent game was within, e.g., 6 months
