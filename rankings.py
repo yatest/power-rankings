@@ -355,6 +355,24 @@ for tr in trs[5:]: # first few trs are not players
         if player['handle'] == api_player:
             rankings[rankings['slug'] == team_slug]['roster'].tolist()[0].append(player['player_id'])
 
+for index, team in rankings.iterrows():
+    print('------------------------\n')
+    print(team['slug'])
+    for player in team['roster']:
+        for pro in players_data:
+            if pro['player_id'] == player:
+                print(pro['handle'])
+
+# missing players (probably because of name change leading to player ID change)
+# might just have to manually deal with this
+#
+# 3Z (HKA)
+# M1ssion (HKA)
+# Seiya (ISR)
+# Warangelus (ISR)
+# PoP (MEG)
+# 
+
 # print all teams and rosters to check this is working correctly
 
 # should make helper functions that convert team id to name, etc.
