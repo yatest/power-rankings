@@ -100,6 +100,7 @@ import requests
 import re
 
 # scrape lol.fandom.com for players in Worlds 2019
+# hopefully should only need to do this for initial Worlds 2019 teams
 
 subject = '2019_Season_World_Championship/Player_Statistics'
 
@@ -189,15 +190,9 @@ for tr in trs[5:]: # first few trs are not players
                 found_team = True
                 break
             elif count == 0:
-                break
+                continue
             else:
                 print('WARNING:', api_team, 'found multiple times in teams.json', )
-
-    # compare acronyms
-    if not found_team:
-        # https://lol.fandom.com/wiki/Data:Teamnames
-        # try and find what acronym is given for the team on lol.fandom and compare
-        # to those given in teams.json
 
 
     # try find newer team name (without new wiki entry)
@@ -241,17 +236,73 @@ for tr in trs[5:]: # first few trs are not players
                 found_team = True
                 break
 
+    # compare acronyms
+    if not found_team:
+        # https://lol.fandom.com/wiki/Data:Teamnames
+        # https://lol.fandom.com/wiki/Special:RunQuery/TeamnamesPageFinder
+        # try and find what acronym is given for the team on lol.fandom and compare
+        # to those given in teams.json
+        team_link_underscore_to_space = team_link.replace('_', ' ')
+        #https://lol.fandom.com/wiki/Special:RunQuery/TeamnamesPageFinder?pfRunQueryFormName=TeamnamesPageFinder&TPF%5BLink%5D=lowkey+esports.vietnam
+        payload = {'pfRunQueryFormName': 'TeamnamesPageFinder',
+                   'TPF[Link]': team_link_underscore_to_space}
+        data = requests.get('https://lol.fandom.com/wiki/Special:RunQuery/TeamnamesPageFinder', params=payload)
+        # might not be able to access this page using API
+        # probably will just have to scrape it
+        soup = BeautifulSoup(data._content,'html.parser')
+        
+        table = soup.find('table')
+        
+        trs = table.find_all('tr')
+        
+        api_acr = trs[1].find('td', {'class': 'field_Short'}).text
+
+        for team in teams_data:
+            if team['acronym'] == api_acr:
+                team_slug = team['slug']
+                if not (team_slug  == rankings['slug']).any():
+                    if team_slug in changes_2019_to_2020:
+                        if (changes_2019_to_2020[team_slug] == rankings['slug']).any():
+                            team_slug = changes_2019_to_2020[team_slug]
+                            found_team = True
+                            break
+
+                    # TODO: move this out to function that adds a new team to ranking
+                    # with default values
+                    try:
+                        temp_df = pd.DataFrame([{
+                            'slug': team_slug, 
+                            'roster': [], 
+                            'last_game': datetime(2020, 1, 1).date(), 
+                            'elo': worlds_rankings[team_slug]
+                        }])
+                        rankings = pd.concat([rankings, temp_df], ignore_index=True)
+                    except:
+                        break
+                found_team = True
+                break
+
     # check if team has renamed (with a new wiki entry)
     if not found_team:
 
-        soup = BeautifulSoup(data['parse']['text']['*'],'html.parser')
+        params = {
+            'action': 'parse',
+            'page': team_link,
+            'format': 'json',
+            'prop':'text',
+            'redirects':''
+        }
 
-        table = soup.find('table',{'class':'infobox InfoboxTeam'})
+        data = requests.get(url, params=params).json()
+
+        soup = BeautifulSoup(data['parse']['text']['*'], 'html.parser')
+
+        table = soup.find('table', {'class': 'infobox InfoboxTeam'})
 
         trs_inner = table.find_all('tr')
 
         try:
-            team_link = trs_inner[0].find('th',{'class':'infobox-notice'}).find('a')['href'][6:]
+            team_link = trs_inner[0].find('th', {'class': 'infobox-notice'}).find('a')['href'][6:]
         except:
             print('WARNING: team has not been renamed')
 
@@ -303,6 +354,8 @@ for tr in trs[5:]: # first few trs are not players
     for player in players_data:
         if player['handle'] == api_player:
             rankings[rankings['slug'] == team_slug]['roster'].tolist()[0].append(player['player_id'])
+
+# print all teams and rosters to check this is working correctly
 
 # should make helper functions that convert team id to name, etc.
 
