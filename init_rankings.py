@@ -34,6 +34,33 @@ worlds_rankings = {
     "flamengo-esports": 650
 }
 
+worlds_leagues = {
+    "funplus-phoenix": 'LPL',
+    "g2-esports": 'LEC',
+    "invictus-gaming": 'LPL',
+    "t1": 'LCK', # SK Telecom T1
+    "griffin": 'LCK',
+    "fnatic": 'LEC',
+    "mad-lions": 'LEC', # Splyce
+    "dwg-kia": 'LCK', # DAMWON
+    "taipei-j-team": 'PCS',
+    "cloud9": 'LCS',
+    "royal-never-give-up": 'LPL',
+    "team-liquid": 'LCS',
+    "gam-esports": 'VCS',
+    "hong-kong-attitude": 'PCS',
+    "dignitas": 'LCS', # Clutch
+    "ahq-esports-club": 'PCS',
+    "lowkey-esports": 'VCS',
+    "royal-bandits-e-sports": 'TCL',
+    "isurus": 'LLA',
+    "unicorns-of-love": 'LCL',
+    "detonation-focusme": 'LJL',
+    "mammoth": 'LCO',
+    "mega-esports": 'PCS', # disbands after Worlds 2019
+    "flamengo-esports": 'CBLOL'
+}
+
 # team name changes between Worlds 2019 and start of data
 changes_2019_to_2020 = {
     "sk-telecom-t1": "t1",
@@ -77,14 +104,14 @@ def find_team_api(rankings, api_team, api_team_no_space, team_slug, teams_data, 
         #check api_team against slug (both with no spaces or hyphens)
         if (team['name'].lower() == api_team.lower()) or (api_team_no_space == slug_no_hyphen):
             team_slug = team['slug']
-            if not (team_slug  == rankings['slug']).any():
+            if not (team_slug  == rankings['slug']).any(): # TODO: does the correct thing happen here if team_slug is in rankings['slug']?
                 if team_slug in changes_2019_to_2020:
                     if (changes_2019_to_2020[team_slug] == rankings['slug']).any():
                         team_slug = changes_2019_to_2020[team_slug]
                         found_team = True
                         return rankings, team_slug, found_team
 
-                rankings = new_team(team_slug, rankings, worlds_rankings[team_slug])
+                rankings = new_team(team_slug, rankings, worlds_rankings[team_slug], worlds_leagues[team_slug])
             found_team = True
             return rankings, team_slug, found_team
     return rankings, team_slug, found_team
@@ -107,7 +134,7 @@ def find_team_api_word(rankings, api_team, team_slug, teams_data, found_team):
                             found_team = True
                             return rankings, team_slug, found_team
 
-                    rankings = new_team(team_slug, rankings, worlds_rankings[team_slug])
+                    rankings = new_team(team_slug, rankings, worlds_rankings[team_slug], worlds_leagues[team_slug])
                 found_team = True
                 return rankings, team_slug, found_team
             elif count == 0:
@@ -188,7 +215,7 @@ def find_team_acronym(rankings, tr, team_slug, teams_data, found_team):
                             return rankings, team_slug, found_team
 
                     try:
-                        rankings = new_team(team_slug, rankings, worlds_rankings[team_slug])
+                        rankings = new_team(team_slug, rankings, worlds_rankings[team_slug], worlds_leagues[team_slug])
                     except:
                         return rankings, team_slug, found_team
                 found_team = True
@@ -196,10 +223,10 @@ def find_team_acronym(rankings, tr, team_slug, teams_data, found_team):
     return rankings, team_slug, found_team
 
 def get_init_rankings():
-    rankings = pd.DataFrame(columns=['slug', 'roster', 'last_game', 'elo'])
+    rankings = pd.DataFrame(columns=['slug', 'roster', 'last_game', 'elo', 'league', 'active'])
 
     for worlds_team in worlds_rankings:
-        rankings = new_team(worlds_team, rankings, worlds_rankings[worlds_team])
+        rankings = new_team(worlds_team, rankings, worlds_rankings[worlds_team], worlds_leagues[worlds_team])
 
     # scrape lol.fandom.com for players in Worlds 2019
     # hopefully should only need to do this for initial Worlds 2019 teams

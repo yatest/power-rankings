@@ -3,12 +3,14 @@ import pandas as pd
 from datetime import datetime
 import json
 
-def new_team(slug, rankings, elo):
+def new_team(slug, rankings, elo, league, roster=None):
     temp_df = pd.DataFrame([{
         'slug': slug, 
-        'roster': [], 
+        'roster': roster or [], 
         'last_game': datetime(2020, 1, 1).date(), 
-        'elo': elo
+        'elo': elo,
+        'league': league,
+        'active': True
     }])
     rankings = pd.concat([rankings, temp_df], ignore_index=True)
     return rankings
@@ -31,3 +33,15 @@ def print_rosters(rankings):
             for pro in players_data:
                 if pro['player_id'] == player:
                     print(pro['handle'])
+
+def id_to_slug(id):
+    with open("data/esports-data/teams.json", "r", encoding='utf-8') as json_teams:
+        teams_data = json.load(json_teams)
+    for team in teams_data:
+        if team['team_id'] == id:
+            return team['slug']
+
+    raise ValueError('Team not found', id)
+        
+def rankings_change(old_rankings, new_rankings):
+    return
