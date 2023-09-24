@@ -34,6 +34,14 @@ def print_rosters(rankings):
                 if pro['player_id'] == player:
                     print(pro['handle'])
 
+def player_id_to_handle(player_id):
+    with open("data/esports-data/players.json", "r", encoding='utf-8') as json_players:
+        players_data = json.load(json_players)
+    for player in players_data:
+        if player['player_id'] == player_id:
+            return player['handle']
+    raise KeyError('Player id not found in players.json')
+
 def id_to_slug(id):
     with open("data/esports-data/teams.json", "r", encoding='utf-8') as json_teams:
         teams_data = json.load(json_teams)
