@@ -33,6 +33,7 @@ def print_rosters(rankings):
             for pro in players_data:
                 if pro['player_id'] == player:
                     print(pro['handle'])
+                    break
 
 def player_id_to_handle(player_id):
     with open("data/esports-data/players.json", "r", encoding='utf-8') as json_players:

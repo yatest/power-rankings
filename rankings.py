@@ -5,22 +5,14 @@
 # (this method will inflate ELO though if all players move to same, but new, team)
 # also could use stats to decide how important player 1 was to team B, however it can be hard to compare players in different positions
 
-
 # then set every team within a region (who didn't attend the tournament) to a specific value
 # e.g., LPL = 1000
 # this value can either be arbitrarily chosen depending on how strong I believe the region was at that time
 # or could be, e.g., 50 ELO lower than the lowest ranked team from that region that attended the tournament
-# could also rank the regional teams by the playoffs before tournament, but might be more effort or little change
+# could also rank the regional teams by the playoffs before tournament, but might be more effort for little change
 
 # store every teams ELO throughout time (set to NaN if the team does not exist) for ELO difference to be calculated
 # may need to instead store ELO at certain times (e.g., end of each month) if this is too much data
-
-# can we run through all data in S3 bucket on AWS (i.e., without downloading it)?
-# (this is only if we want the specific game data, not just knowing who wins/loses)
-
-# may need to deal with teams changing name/getting bought out
-
-# could also create an object for each team instead of a pandas series
 
 import init_rankings
 from helper_functions import *
@@ -30,12 +22,11 @@ def update_active(rankings, slug):
         rankings.loc[rankings['slug'] == slug, 'active'] = True
     else:
         rankings.loc[rankings['slug'] == slug, 'active'] = False
+    return rankings
 
-def update_team_elo(slug, rankings, new_roster, region):
+def update_team_elo(slug, rankings, new_roster, league):
     # should only take the 5 highest elo_contr from roster
-    # or maybe 5 most recent including the new player?
-    # this is only called when a new player joins the roster
-    # and plays a game so which method is more accurate?
+    # or maybe 5 most recent?
     # update elo on roster change
     # KEEP FIRST 5 PLAYERS AS ACTIVE PLAYERS AND ONLY ALLOW
     # THEM TO USE ELO FROM PREVIOUS TEAM
@@ -47,14 +38,14 @@ def update_team_elo(slug, rankings, new_roster, region):
                 # assume only 5 players per team
                 elo_contr = team['elo'] / 5
                 # should also make old team inactive if
-                # not also the new team (as old team will
+                # it is not also the new team (as old team will
                 # now have < 5 players)
                 if team['slug'] != slug:
                     rankings.loc[rankings['slug'] == team['slug'], 'roster'].to_list()[0].remove(player)
-                    update_active(rankings, team['slug'])
+                    rankings = update_active(rankings, team['slug'])
                 break
         if not elo_contr:
-            elo_contr = init_elo(region)
+            elo_contr = init_elo(league)
         if len(elo) < 5:
             elo.append(elo_contr)
             elo_contr = None
@@ -68,7 +59,7 @@ def update_team_elo(slug, rankings, new_roster, region):
     if (slug == rankings['slug']).any():
         rankings.loc[rankings['slug'] == slug, 'elo'] = elo
     else:
-        rankings = new_team(slug, rankings, elo, region)
+        rankings = new_team(slug, rankings, elo, league)
     return rankings
 
 def update_team_roster(slug, rankings, new_roster):
@@ -81,6 +72,7 @@ def update_team_roster(slug, rankings, new_roster):
             else:
                 rankings.loc[rankings['slug'] == slug, 'roster'].to_list()[0].remove(player)
                 rankings.loc[rankings['slug'] == slug, 'roster'].to_list()[0].insert(0, player)
+        rankings = update_active(rankings, slug)
     else:
         raise ValueError('Team not in rankings')
     return rankings
@@ -89,8 +81,8 @@ def update_team_last_game(slug, rankings):
     # update last_game with date of game
     return rankings
 
-def update_team(slug, rankings, new_roster, region):
-    rankings = update_team_elo(slug, rankings, new_roster, region)
+def update_team(slug, rankings, new_roster, league):
+    rankings = update_team_elo(slug, rankings, new_roster, league)
     rankings = update_team_roster(slug, rankings, new_roster)
     rankings = update_team_last_game(slug, rankings)
     return rankings
@@ -103,7 +95,7 @@ def calculate_elo_change(elo1, elo2, importance, result):
     elo1 += importance * (result - expected)
     return elo1
 
-def init_elo(region):
+def init_elo(league):
     # initial elo of new player
 
     # OPTIONS:
@@ -129,7 +121,7 @@ def init_elo(region):
     elo = 0
     count = 0
     for _, team in rankings.iterrows():
-        if (team['league'] == region) and team['active'] == True:
+        if (team['league'] == league) and team['active'] == True:
             elo += team['elo']
             count += 1
 
@@ -200,27 +192,44 @@ def leagueId_to_region(id):
     return leagues_dict[leagues_dict['id'] == tournaments_data[0]['leagueId']]['region'].iat[0]
         
 
-def calculate_tournament(tournament, rankings, region):
+def calculate_tournament(tournament, rankings, league):
     for stage in tournament['stages']:
         for section in stage['sections']:
             for match in section['matches']:
-                teams = match['teams']
                 for game in match['games']:
                     if game['state'] != 'completed':
                         continue
+                    teams = teams_from_game(game)
                     roster1, roster2 = rosters_from_game(game)
                     if len(roster1) != 0:
-                        rankings = update_team(id_to_slug(teams[0]['id']), rankings, roster1, region)
-                        rankings = update_team(id_to_slug(teams[1]['id']), rankings, roster2, region)
-                    elo1 = rankings.loc[rankings['slug'] == id_to_slug(teams[0]['id']), 'elo'].iat[0]
-                    elo2 = rankings.loc[rankings['slug'] == id_to_slug(teams[1]['id']), 'elo'].iat[0]
-                    if teams[0]['result']['outcome'] == 'win':
-                        rankings.loc[rankings['slug'] == id_to_slug(teams[0]['id']), 'elo'] = calculate_elo_change(elo1, elo2, get_importance(tournament['leagueId']), 1)
-                        rankings.loc[rankings['slug'] == id_to_slug(teams[1]['id']), 'elo'] = calculate_elo_change(elo2, elo1, get_importance(tournament['leagueId']), 0)
+                        rankings = update_team(id_to_slug(teams['100']), rankings, roster1, league)
+                        rankings = update_team(id_to_slug(teams['200']), rankings, roster2, league)
+                    # should probably include a check here in case one of the teams is new (not in rankings)
+                    # but also doesn't have a full roster in mapping_data, i.e., the update_team call
+                    # above hasn't happened. this team will not have an elo in rankings (or even an entry)
+                    elo1 = rankings.loc[rankings['slug'] == id_to_slug(teams['100']), 'elo'].iat[0]
+                    elo2 = rankings.loc[rankings['slug'] == id_to_slug(teams['200']), 'elo'].iat[0]
+                    # check order in tournaments.json matches mapping_data.json
+                    if game['teams'][0]['id'] == teams['100']:
+                        teams['100'], teams['200'] = teams['200'], teams['100']
+                    if game['teams'][0]['result']['outcome'] == 'win':
+                        rankings.loc[rankings['slug'] == id_to_slug(teams['100']), 'elo'] = calculate_elo_change(elo1, elo2, get_importance(tournament['leagueId']), 1)
+                        rankings.loc[rankings['slug'] == id_to_slug(teams['200']), 'elo'] = calculate_elo_change(elo2, elo1, get_importance(tournament['leagueId']), 0)
                     else:
-                        rankings.loc[rankings['slug'] == id_to_slug(teams[0]['id']), 'elo'] = calculate_elo_change(elo1, elo2, get_importance(tournament['leagueId']), 0)
-                        rankings.loc[rankings['slug'] == id_to_slug(teams[1]['id']), 'elo'] = calculate_elo_change(elo2, elo1, get_importance(tournament['leagueId']), 1)
+                        rankings.loc[rankings['slug'] == id_to_slug(teams['100']), 'elo'] = calculate_elo_change(elo1, elo2, get_importance(tournament['leagueId']), 0)
+                        rankings.loc[rankings['slug'] == id_to_slug(teams['200']), 'elo'] = calculate_elo_change(elo2, elo1, get_importance(tournament['leagueId']), 1)
     return rankings
+
+# test that every team in LEC plays the expected number of games during the regular season
+# there are many 'unstarted' games at the end of the regular season
+
+def teams_from_game(game):
+    with open("data/esports-data/mapping_data.json", "r", encoding='utf-8') as json_file:
+        mapping_data = json.load(json_file)
+    for game_map in mapping_data:
+        if game_map['esportsGameId'] == game['id']:
+            teams = game_map['teamMapping']
+            return teams
 
 def rosters_from_game(game):
     # how to determine which player is on which team?
@@ -234,9 +243,9 @@ def rosters_from_game(game):
     roster1 = []
     roster2 = []
     participants = None
-    for map in mapping_data:
-        if map['esportsGameId'] == game['id']:
-            participants = map['participantMapping']
+    for game_map in mapping_data:
+        if game_map['esportsGameId'] == game['id']:
+            participants = game_map['participantMapping']
             break
     if (not participants) or (len(participants) < 10):
         # maybe we assume team does not change from previous roster
@@ -273,74 +282,36 @@ def rosters_from_game(game):
         # First game in LEC Spring 2020 in tournaments.json
         # is Astralis vs SK which didn't happen until Week 5
         # might have to treat each stage in one go 
+        # this might cause odd behaviour with players that move teams
+        # mid split, but I don't think this is possible any more due to 
+        # roster locks
 
-        # Doc says that mapping data for LPL is only for Summer 2023
-        # so this method of checking players won't work for many tournaments
-        # found = 0
-        # for team_player in teams[0]['players']:
-        #     if team_player['id'] == player:
-        #         roster1.append(player)
-        #         found = 1
-        #         break
-        # if not found:
-        #     for team_player in teams[1]['players']:
-        #         if team_player['id'] == player:
-        #             roster2.append(player)
-        #             found = 1
-        #             break
-        # if not found:
-        #     raise ValueError('Player in mapping_data not found in match[\'teams\']', player)
     return roster1, roster2
 
-# rankings = init_rankings.get_init_rankings()
 rankings = load_rankings('init_rankings')
 
 tournaments_data = ordered_list_main_tournaments()
 
-# all seems to be fine after regular split apart from schalke-04 being marked inactive. might be a problem with leaving elo 
-# for an unactive team as-is
-# since when a new player joins it may think a sub who was 6th in roster is now in  first 5 players in 
+# might be a problem with leaving elo for an unactive team as-is
+# since when a new player joins it may think a sub who was 6th in roster is now in first 5 players in 
 # roster making them active. need to think of a good way to keep track of this. maybe split 'roster' 
 # into 'active_roster' and 'inactive_roster' depending on if they played the previous game?
+
+# also will cause an issue as if team fields a new roster in first game of split, when the
+# old roster play their first game on a new team they will be treated as subs for the old team
+# can we keep track of what the elo was previously?
+# maybe just scan all games of split first and calculate new rosters, then use old rosters
+# to calculate elo at start of split? if teams change much over split this might be inaccurate though.
+
 # when a player joins a new roster and is removed from old roster, recalculate the old roster's elo
 # (sans the player). if the old roster now has 4 players, should set the elo to 4/5 the previous elo?
 
-# schalke becomes inactive after penultimate game in regular split. why?
-
-# should we label teams by league (which may change name) or region? be consistent
-# rankings = calculate_tournament(tournaments_data[0], rankings, 'LEC')
+rankings = calculate_tournament(tournaments_data[0], rankings, 'LEC')
 # calculate_tournament(tournaments_data[0], rankings, leagueId_to_region(tournaments_data[0]['leagueId']))
 
 # potentially add some modifier or winstreaks (within the tournament?)
-
-# rankings = update_team('new_team', rankings, rankings.loc[rankings['slug'] == 'mammoth', 'roster'].to_list()[0].copy(), 'LJL')
-
-# print_rosters(players_data)
-# save_rankings(rankings, 'init_rankings')
-
-# rookies get ELO according to ELO of region's lowest Worlds finish
-# (or most recent international tournament)
-# (or average region ELO * const)
-
-# team ELO calculated as average of its roster
-
-# calculate new ELOs as players move teams
 
 # treat subs who never play a game as new players (i.e., give them base region ELO)
 
 # teams such as T1 have times when players are frequently being subbed out
 # therefore need to keep track of every players last known ELO
-
-# will need to check each game that the same players are still in the team, therefore
-# must keep track of roster and whether a team is active
-# e.g., Lowkey Esports in VCS 2020 Spring becomes Team Secret after Week 2
-# will need to find what team each player of the (new) team Team Secret were on
-# and calculate the ELO of the new team appropriately
-# since all players were on Lowkey Esports this should just equal the new ELO
-# will then need to set Lowkey Esports to inactive and Team Secret to active
-
-# can move teams into a pandas dataframe
-# each entry is a team with its name, current players, last played game, ELO, etc.
-# whether a team is active or not can be calculated when needed by checking if
-# a team has at least 5 players or if its most recent game was within, e.g., 6 months
-# how to deal with retired players?
