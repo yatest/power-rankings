@@ -9,29 +9,29 @@ import re
 # note that team names are as they appear in 2020 onwards
 worlds_rankings = {
     "funplus-phoenix": 1600,
-    "g2-esports": 1300,
-    "invictus-gaming": 1100,
-    "t1": 1100, # SK Telecom T1
-    "griffin": 1000,
-    "fnatic": 1000,
-    "mad-lions": 1000, # Splyce
-    "dwg-kia": 1000, # DAMWON
-    "taipei-j-team": 800,
-    "cloud9": 800,
-    "royal-never-give-up": 800,
-    "team-liquid": 800,
-    "gam-esports": 750,
-    "hong-kong-attitude": 750,
-    "dignitas": 750, # Clutch
-    "ahq-esports-club": 750,
-    "lowkey-esports": 700,
-    "royal-bandits-e-sports": 700,
-    "isurus": 700,
-    "unicorns-of-love": 700,
-    "detonation-focusme": 650,
-    "mammoth": 650,
-    "mega-esports": 650, # disbands after Worlds 2019
-    "flamengo-esports": 650
+    "g2-esports": 1590,
+    "invictus-gaming": 1580,
+    "t1": 1570, # SK Telecom T1
+    "griffin": 1560,
+    "fnatic": 1550,
+    "mad-lions": 1540, # Splyce
+    "dwg-kia": 1530, # DAMWON
+    "taipei-j-team": 1520,
+    "cloud9": 1510,
+    "royal-never-give-up": 1500,
+    "team-liquid": 1490,
+    "gam-esports": 1480,
+    "hong-kong-attitude": 1470,
+    "dignitas": 1460, # Clutch
+    "ahq-esports-club": 1450,
+    "lowkey-esports": 1440,
+    "royal-bandits-e-sports": 1430,
+    "isurus": 1420,
+    "unicorns-of-love": 1410,
+    "detonation-focusme": 1400,
+    "mammoth": 1390,
+    "mega-esports": 1380, # disbands after Worlds 2019
+    "flamengo-esports": 1370
 }
 
 worlds_leagues = {
@@ -118,52 +118,53 @@ def find_team_api(rankings, api_team, api_team_no_space, team_slug, teams_data, 
 
 def find_team_api_word(rankings, api_team, team_slug, teams_data, found_team):
     # check each word in api_team for matches
-    if not found_team:
-        for word in api_team.lower().split():
-            count = 0
-            for team in teams_data:
-                if word in team['name'].lower().split():
-                    count += 1
-                    recent_slug = team['slug']
-            if count == 1:
-                team_slug = recent_slug
-                if not (team_slug  == rankings['slug']).any():
-                    if team_slug in changes_2019_to_2020:
-                        if (changes_2019_to_2020[team_slug] == rankings['slug']).any():
-                            team_slug = changes_2019_to_2020[team_slug]
-                            found_team = True
-                            return rankings, team_slug, found_team
-
-                    rankings = new_team(team_slug, rankings, worlds_rankings[team_slug], worlds_leagues[team_slug])
-                found_team = True
-                return rankings, team_slug, found_team
-            elif count == 0:
-                continue
-            # else:
-                # print('WARNING:', api_team, 'found multiple times in teams.json', )
+    if  found_team:
         return rankings, team_slug, found_team
+    for word in api_team.lower().split():
+        count = 0
+        for team in teams_data:
+            if word in team['name'].lower().split():
+                count += 1
+                recent_slug = team['slug']
+        if count == 1:
+            team_slug = recent_slug
+            if not (team_slug  == rankings['slug']).any():
+                if team_slug in changes_2019_to_2020:
+                    if (changes_2019_to_2020[team_slug] == rankings['slug']).any():
+                        team_slug = changes_2019_to_2020[team_slug]
+                        found_team = True
+                        return rankings, team_slug, found_team
+
+                rankings = new_team(team_slug, rankings, worlds_rankings[team_slug], worlds_leagues[team_slug])
+            found_team = True
+            return rankings, team_slug, found_team
+        elif count == 0:
+            continue
+        # else:
+            # print('WARNING:', api_team, 'found multiple times in teams.json', )
     return rankings, team_slug, found_team
 
 def find_team_page(rankings, url, tr, team_slug, teams_data, found_team):
     # try find newer team name (without new wiki entry)
-    if not found_team:
-        team_link = tr.find('td',{'class':'spstats-team'}).find('a')['href'][6:]
-
-        # first loop tries original wiki page
-        # second loop tries name-change page
-        while not found_team and team_link:
-            data = get_api_scrape(team_link, url)
-
-            api_team = data['parse']['title']
-            api_team = re.sub("[\(\[].*?[\)\]]", "", api_team)
-            api_team_no_space = ''.join(api_team.split()).lower()
-            api_team.rstrip()
-
-            rankings, team_slug, found_team = find_team_api(rankings, api_team, api_team_no_space, team_slug, teams_data, found_team)
-
-            team_link = find_team_new_page(data)
-
+    if found_team:
         return rankings, team_slug, found_team
+    
+    team_link = tr.find('td',{'class':'spstats-team'}).find('a')['href'][6:]
+
+    # first loop tries original wiki page
+    # second loop tries name-change page
+    while not found_team and team_link:
+        data = get_api_scrape(team_link, url)
+
+        api_team = data['parse']['title']
+        api_team = re.sub("[\(\[].*?[\)\]]", "", api_team)
+        api_team_no_space = ''.join(api_team.split()).lower()
+        api_team.rstrip()
+
+        rankings, team_slug, found_team = find_team_api(rankings, api_team, api_team_no_space, team_slug, teams_data, found_team)
+
+        team_link = find_team_new_page(data)
+
     return rankings, team_slug, found_team
     
 def find_team_new_page(data):
@@ -183,50 +184,51 @@ def find_team_new_page(data):
 
 def find_team_acronym(rankings, tr, team_slug, teams_data, found_team):
     # compare acronyms
-    if not found_team:
-        # https://lol.fandom.com/wiki/Data:Teamnames
-        # https://lol.fandom.com/wiki/Special:RunQuery/TeamnamesPageFinder
-        # try and find what acronym is given for the team on lol.fandom and compare
-        # to those given in teams.json
-        team_link = tr.find('td',{'class':'spstats-team'}).find('a')['href'][6:]
-        team_link_underscore_to_space = team_link.replace('_', ' ')
-        #https://lol.fandom.com/wiki/Special:RunQuery/TeamnamesPageFinder?pfRunQueryFormName=TeamnamesPageFinder&TPF%5BLink%5D=lowkey+esports.vietnam
-        payload = {'pfRunQueryFormName': 'TeamnamesPageFinder',
-                   'TPF[Link]': team_link_underscore_to_space}
-        data = requests.get('https://lol.fandom.com/wiki/Special:RunQuery/TeamnamesPageFinder', params=payload)
-        # might not be able to access this page using API
-        # probably will just have to scrape it
-        soup = BeautifulSoup(data._content,'html.parser')
-        
-        table = soup.find('table')
-        
-        trs_inner = table.find_all('tr')
-        
-        api_acr = trs_inner[1].find('td', {'class': 'field_Short'}).text
+    if found_team:
+        return rankings, team_slug, found_team
+    # https://lol.fandom.com/wiki/Data:Teamnames
+    # https://lol.fandom.com/wiki/Special:RunQuery/TeamnamesPageFinder
+    # try and find what acronym is given for the team on lol.fandom and compare
+    # to those given in teams.json
+    team_link = tr.find('td',{'class':'spstats-team'}).find('a')['href'][6:]
+    team_link_underscore_to_space = team_link.replace('_', ' ')
+    #https://lol.fandom.com/wiki/Special:RunQuery/TeamnamesPageFinder?pfRunQueryFormName=TeamnamesPageFinder&TPF%5BLink%5D=lowkey+esports.vietnam
+    payload = {'pfRunQueryFormName': 'TeamnamesPageFinder',
+                'TPF[Link]': team_link_underscore_to_space}
+    data = requests.get('https://lol.fandom.com/wiki/Special:RunQuery/TeamnamesPageFinder', params=payload)
+    # might not be able to access this page using API
+    # probably will just have to scrape it
+    soup = BeautifulSoup(data._content,'html.parser')
+    
+    table = soup.find('table')
+    
+    trs_inner = table.find_all('tr')
+    
+    api_acr = trs_inner[1].find('td', {'class': 'field_Short'}).text
 
-        for team in teams_data:
-            if team['acronym'] == api_acr:
-                team_slug = team['slug']
-                if not (team_slug  == rankings['slug']).any():
-                    if team_slug in changes_2019_to_2020:
-                        if (changes_2019_to_2020[team_slug] == rankings['slug']).any():
-                            team_slug = changes_2019_to_2020[team_slug]
-                            found_team = True
-                            return rankings, team_slug, found_team
-
-                    try:
-                        rankings = new_team(team_slug, rankings, worlds_rankings[team_slug], worlds_leagues[team_slug])
-                    except:
+    for team in teams_data:
+        if team['acronym'] == api_acr:
+            team_slug = team['slug']
+            if not (team_slug  == rankings['slug']).any():
+                if team_slug in changes_2019_to_2020:
+                    if (changes_2019_to_2020[team_slug] == rankings['slug']).any():
+                        team_slug = changes_2019_to_2020[team_slug]
+                        found_team = True
                         return rankings, team_slug, found_team
-                found_team = True
-                return rankings, team_slug, found_team
+
+                try:
+                    rankings = new_team(team_slug, rankings, worlds_rankings[team_slug], worlds_leagues[team_slug])
+                except:
+                    return rankings, team_slug, found_team
+            found_team = True
+            return rankings, team_slug, found_team
     return rankings, team_slug, found_team
 
 def get_init_rankings():
-    rankings = pd.DataFrame(columns=['slug', 'roster', 'last_game', 'elo', 'league', 'active'])
+    rankings = pd.DataFrame(columns=['slug', 'active_roster', 'inactive_roster', 'elo', 'last_game', 'league', 'active'])
 
     for worlds_team in worlds_rankings:
-        rankings = new_team(worlds_team, rankings, worlds_rankings[worlds_team], worlds_leagues[worlds_team])
+        rankings = new_team(worlds_team, rankings, worlds_leagues[worlds_team], elo=worlds_rankings[worlds_team])
 
     # scrape lol.fandom.com for players in Worlds 2019
     # hopefully should only need to do this for initial Worlds 2019 teams
@@ -264,9 +266,9 @@ def get_init_rankings():
         # assuming we can't trust home_team_id as this will change if players change teams
         for player in players_data:
             if player['handle'].lower() == api_player.lower():
-                rankings[rankings['slug'] == team_slug]['roster'].tolist()[0].append(player['player_id'])
+                rankings[rankings['slug'] == team_slug]['active_roster'].tolist()[0].append([player['player_id'], worlds_rankings[team_slug]])
 
     # only player missing now is M1ssion (HKA) due to name change -> Mission
-    rankings[rankings['slug'] == 'hong-kong-attitude']['roster'].tolist()[0].append("98767991808793901")
+    rankings[rankings['slug'] == 'hong-kong-attitude']['active_roster'].tolist()[0].append(["98767991808793901", worlds_rankings['hong-kong-attitude']])
 
     return rankings

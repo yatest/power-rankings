@@ -3,12 +3,13 @@ import pandas as pd
 from datetime import datetime
 import json
 
-def new_team(slug, rankings, elo, league, roster=None):
+def new_team(slug, rankings, league, elo=None, roster=None):
     temp_df = pd.DataFrame([{
         'slug': slug, 
-        'roster': roster or [], 
+        'active_roster': roster or [],
+        'inactive_roster': [],
+        'elo': elo or 0,
         'last_game': datetime(2020, 1, 1).date(), 
-        'elo': elo,
         'league': league,
         'active': True
     }])
@@ -29,9 +30,9 @@ def print_rosters(rankings):
     for _, team in rankings.iterrows():
         print('------------------------\n')
         print(team['slug'])
-        for player in team['roster']:
+        for player in team['active_roster']:
             for pro in players_data:
-                if pro['player_id'] == player:
+                if pro['player_id'] == player[0]:
                     print(pro['handle'])
                     break
 
@@ -50,7 +51,8 @@ def id_to_slug(id):
         if team['team_id'] == id:
             return team['slug']
 
-    raise ValueError('Team not found', id)
+    # raise ValueError('Team not found', id)
+    return None
         
 def rankings_change(old_rankings, new_rankings):
     return
