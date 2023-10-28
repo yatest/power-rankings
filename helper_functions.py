@@ -54,5 +54,3 @@ def id_to_slug(id):
     # raise ValueError('Team not found', id)
     return None
         
-def rankings_change(old_rankings, new_rankings):
-    return

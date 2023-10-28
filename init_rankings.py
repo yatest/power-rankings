@@ -9,29 +9,29 @@ import re
 # note that team names are as they appear in 2020 onwards
 worlds_rankings = {
     "funplus-phoenix": 1600,
-    "g2-esports": 1590,
-    "invictus-gaming": 1580,
-    "t1": 1570, # SK Telecom T1
-    "griffin": 1560,
-    "fnatic": 1550,
-    "mad-lions": 1540, # Splyce
-    "dwg-kia": 1530, # DAMWON
-    "taipei-j-team": 1520,
-    "cloud9": 1510,
-    "royal-never-give-up": 1500,
-    "team-liquid": 1490,
-    "gam-esports": 1480,
-    "hong-kong-attitude": 1470,
-    "dignitas": 1460, # Clutch
-    "ahq-esports-club": 1450,
-    "lowkey-esports": 1440,
-    "royal-bandits-e-sports": 1430,
-    "isurus": 1420,
-    "unicorns-of-love": 1410,
-    "detonation-focusme": 1400,
-    "mammoth": 1390,
-    "mega-esports": 1380, # disbands after Worlds 2019
-    "flamengo-esports": 1370
+    "g2-esports": 1596,
+    "invictus-gaming": 1592,
+    "t1": 1588, # SK Telecom T1
+    "griffin": 1584,
+    "fnatic": 1580,
+    "mad-lions": 1576, # Splyce
+    "dwg-kia": 1572, # DAMWON
+    "taipei-j-team": 1568,
+    "cloud9": 1564,
+    "royal-never-give-up": 1560,
+    "team-liquid": 1556,
+    "gam-esports": 1552,
+    "hong-kong-attitude": 1548,
+    "dignitas": 1544, # Clutch
+    "ahq-esports-club": 1540,
+    "lowkey-esports": 1536,
+    "royal-bandits-e-sports": 1532,
+    "isurus": 1528,
+    "unicorns-of-love": 1524,
+    "detonation-focusme": 1520,
+    "mammoth": 1516,
+    "mega-esports": 1512, # disbands after Worlds 2019
+    "flamengo-esports": 1508
 }
 
 worlds_leagues = {

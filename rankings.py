@@ -93,9 +93,20 @@ def update_team_last_game(slug, rankings):
     # update last_game with date of game
     return rankings
 
+def update_team_league(slug, rankings, league):
+    # if league is 'msi' or 'worlds' then set to current regional league
+    # also reset elo to regions average elo
+    # this happens if a team appears at international tournament before first instance of its regional league
+    if rankings.loc[rankings['slug'] == slug, 'league'].item() in ['MSI', 'WORLDS']:
+        if league not in ['MSI', 'WORLDS']:
+            rankings.loc[rankings['slug'] == slug, 'league'] = league
+            rankings.loc[rankings['slug'] == slug, 'elo'] = max(5 * init_elo(rankings, league), rankings.loc[rankings['slug'] == slug, 'elo'].item())
+    return rankings
+
 def update_team(slug, rankings, new_roster, avg_elo, league):
     rankings = update_team_elo(slug, rankings, new_roster, avg_elo, league)
     rankings = update_team_last_game(slug, rankings)
+    rankings = update_team_league(slug, rankings, league)
     return rankings
 
 def calculate_elo_change(elo1, elo2, importance, result):
@@ -148,12 +159,14 @@ def init_elo(rankings, league):
         elo = 1100
         count = 1
 
+    # how to choose elo if teams first game is in international tournament?
+
     # 3) average elo of all teams at start/end of split/season and use
     # throughout that split/season
     # this is probably the best way of doing it
 
     # assume new player is worse than average
-    multiplier = 0.8
+    multiplier = 0.9
 
     return multiplier * elo / count / 5
 
@@ -181,7 +194,6 @@ def ordered_list_main_tournaments():
         # check if tournament is a region major tournament
         if tournament['leagueId'] not in leagues_dict['id'].values:
             tournaments_data = [tour for tour in tournaments_data if tour['id'] != tournament['id']]
-
     return tournaments_data
 
 def get_major_leagues():
@@ -196,21 +208,24 @@ def get_major_leagues():
             leagues_dict.loc[len(leagues_dict)] = [league['id'], league['name'].upper(), league['region'].lower(), league['priority']]
         
     # add in worlds
-
-    # # ignore international tournaments
-    # leagues_dict = leagues_dict.loc[leagues_dict['region'] != 'international']
-
+    leagues_dict.loc[len(leagues_dict)] = ['98767975604431411', 'WORLDS', 'international', 300]
     return leagues_dict
 
-def get_importance(id):
+def get_importance(leagueId, stage_name):
     # can't use leagueId to differentiate playoffs from regular season
     # maybe use the fact that in tournaments_data[0]['stages'] each section
     # (regular season, playoffs) is named differently.
     # Don't know if this is consistent though
 
-    # may need to make this high at international events to allow for 
-    # rebalancing between regions (which only play themselves during season)
-    importance = 10
+    importance = 15
+
+    # should probably increase importance throughout the tournament
+    if leagueId in inter_tours:
+        return importance * 4
+
+    if stage_name in playoffs_key:
+        return importance * 2
+
     return importance
 
 def leagueId_to_region(leagueId):
@@ -256,15 +271,19 @@ def calculate_tournament(tournament, rankings, league):
                         teams['100'], teams['200'] = teams['200'], teams['100']
                         elo1, elo2 = elo2, elo1
                     if game['teams'][0]['result']['outcome'] == 'win':
-                        rankings.loc[rankings['slug'] == id_to_slug(teams['100']), 'elo'] = calculate_elo_change(elo1, elo2, get_importance(tournament['leagueId']), 1)
+                        rankings.loc[rankings['slug'] == id_to_slug(teams['100']), 'elo'] = calculate_elo_change(elo1, elo2, get_importance(tournament['leagueId'], stage['name']), 1)
                         # don't allow elo to drop during playoffs or international tournaments
-                        # are playoffs always called 'Playoffs'?
-                        if (tournament['leagueId'] not in inter_tours) and (stage['name'] != 'Playoffs'):
-                            rankings.loc[rankings['slug'] == id_to_slug(teams['200']), 'elo'] = calculate_elo_change(elo2, elo1, get_importance(tournament['leagueId']), 0)
+                        if (tournament['leagueId'] not in inter_tours) and (stage['name'] not in playoffs_key):
+                            rankings.loc[rankings['slug'] == id_to_slug(teams['200']), 'elo'] = calculate_elo_change(elo2, elo1, get_importance(tournament['leagueId'], stage['name']), 0)
                     else:
-                        if (tournament['leagueId'] not in inter_tours) and (stage['name'] != 'Playoffs'):
-                            rankings.loc[rankings['slug'] == id_to_slug(teams['100']), 'elo'] = calculate_elo_change(elo1, elo2, get_importance(tournament['leagueId']), 0)
-                        rankings.loc[rankings['slug'] == id_to_slug(teams['200']), 'elo'] = calculate_elo_change(elo2, elo1, get_importance(tournament['leagueId']), 1)
+                        if (tournament['leagueId'] not in inter_tours) and (stage['name'] not in playoffs_key):
+                            rankings.loc[rankings['slug'] == id_to_slug(teams['100']), 'elo'] = calculate_elo_change(elo1, elo2, get_importance(tournament['leagueId'], stage['name']), 0)
+                        rankings.loc[rankings['slug'] == id_to_slug(teams['200']), 'elo'] = calculate_elo_change(elo2, elo1, get_importance(tournament['leagueId'], stage['name']), 1)
+
+                    if (id_to_slug(teams['100']) == 'jd-gaming') or (id_to_slug(teams['200']) == 'jd-gaming'):
+                        print(game['id'])
+                        print(rankings.loc[rankings['slug'] == 'jd-gaming', 'elo'].item())
+                        print_rosters(rankings[rankings['slug']=='jd-gaming'])
 
                     # how do we assign elo change to individual players?
                     # simplest way is to just set the player's elo to the team's new elo
@@ -344,6 +363,8 @@ def rosters_from_game(game):
 
 # worlds and msi leagueIds
 inter_tours = ['98767975604431411', '98767991325878492']
+# names of playoffs and knockout stages
+playoffs_key = ['Playoffs', 'Regional Qualifier', 'regional_qualifier', 'Knockouts', 'knockouts', 'Regional Finals']
 
 rankings = load_rankings('init_rankings')
 # rankings = init_rankings.get_init_rankings()
@@ -369,3 +390,5 @@ for tournament in tournaments_data:
 # easiest way to fix most of these problems is to just store a list of player_id and player_elo
 # then every team's elo is calculated as the average of the player_elos in active_roster
 # also allows for individual player's elos to be different in the future
+
+# try tweaking elo and see how it affects rankings
