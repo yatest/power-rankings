@@ -17,43 +17,44 @@
 import numpy as np
 import init_rankings
 from helper_functions import *
+from datetime import datetime
 
-def update_active(rankings, slug):
-    if len(rankings.loc[rankings['slug'] == slug, 'active_roster'].to_list()[0]) >= 5: # and last_game less than X days ago
+def update_active(rankings, slug, tournament):
+    # at least 5 active players and last game within 6 months
+    if ((len(rankings.loc[rankings['slug'] == slug, 'active_roster'].to_list()[0]) >= 5) and 
+        ((datetime.strptime(tournament['startDate'],'%Y-%m-%d').date() - rankings.loc[rankings['slug'] == slug, 'last_game'].item()).days < 180)): 
         rankings.loc[rankings['slug'] == slug, 'active'] = True
     else:
         rankings.loc[rankings['slug'] == slug, 'active'] = False
     return rankings
 
-def find_player_elo(player, slug, rankings, avg_elo):
+def find_player_elo(player, slug, rankings, avg_elo, tournament):
     for _, team in rankings.iterrows():
         for active_player in team['active_roster']:
             if active_player[0] == player:
                 elo_contr = active_player[1] / 5
                 if team['slug'] != slug:
                     rankings.loc[rankings['slug'] == team['slug'], 'active_roster'].to_list()[0].remove(active_player)
-                    rankings = update_active(rankings, team['slug'])
+                    rankings = update_active(rankings, team['slug'], tournament)
                 return elo_contr, rankings, active_player
             
         for inactive_player in team['inactive_roster']:
             if inactive_player[0] == player:
                 elo_contr = inactive_player[1] / 5
                 rankings.loc[rankings['slug'] == team['slug'], 'inactive_roster'].to_list()[0].remove(inactive_player)
-                rankings = update_active(rankings, team['slug'])
+                rankings = update_active(rankings, team['slug'], tournament)
                 return elo_contr, rankings, inactive_player
             
     return avg_elo, rankings, [player, avg_elo*5]
 
-# need to make sure each player only appears once and only 5 players in active_roster
-
-def update_team_elo(slug, rankings, new_roster, avg_elo, league):
+def update_team_elo(slug, rankings, new_roster, avg_elo, league, tournament):
     if not (slug == rankings['slug']).any():
         rankings = new_team(slug, rankings, league)
 
     elo = 0
     for player in new_roster:
-        elo_contr, rankings, new_player = find_player_elo(player, slug, rankings, avg_elo)
-        rankings = update_team_roster(slug, rankings, new_player)
+        elo_contr, rankings, new_player = find_player_elo(player, slug, rankings, avg_elo, tournament)
+        rankings = update_team_roster(slug, rankings, new_player, tournament)
         elo += elo_contr
     
     rankings = remove_old_players(slug, rankings, new_roster)
@@ -65,11 +66,11 @@ def update_team_elo(slug, rankings, new_roster, avg_elo, league):
 
     return rankings
 
-def update_team_roster(slug, rankings, new_player):
+def update_team_roster(slug, rankings, new_player, tournament):
     if (slug == rankings['slug']).any():
         if not any(new_player[0] == player[0] for player in rankings.loc[rankings['slug'] == slug, 'active_roster'].to_list()[0]):
             rankings.loc[rankings['slug'] == slug, 'active_roster'].to_list()[0].append(new_player)
-        rankings = update_active(rankings, slug)
+        rankings = update_active(rankings, slug, tournament)
     else:
         raise ValueError('Team not in rankings')
     return rankings
@@ -89,8 +90,11 @@ def remove_old_players(slug, rankings, new_roster):
     rankings.loc[rankings['slug'] == slug, 'active_roster'] = pd.Series([[e for e in rankings.loc[rankings['slug'] == slug, 'active_roster'].to_list()[0] if e[0] not in old_players]], index=rankings.index[rankings['slug'] == slug])
     return rankings
 
-def update_team_last_game(slug, rankings):
-    # update last_game with date of game
+def update_team_last_game(slug, rankings, tournament):
+    # update last_game with date of tournament end
+    if (slug == rankings['slug']).any():
+        if datetime.strptime(tournament["endDate"], '%Y-%m-%d').date() > rankings.loc[rankings['slug'] == slug, 'last_game'].item():
+            rankings.loc[rankings['slug'] == slug, 'last_game'] = datetime.strptime(tournament["endDate"], '%Y-%m-%d').date()
     return rankings
 
 def update_team_league(slug, rankings, league):
@@ -103,9 +107,9 @@ def update_team_league(slug, rankings, league):
             rankings.loc[rankings['slug'] == slug, 'elo'] = max(5 * init_elo(rankings, league), rankings.loc[rankings['slug'] == slug, 'elo'].item())
     return rankings
 
-def update_team(slug, rankings, new_roster, avg_elo, league):
-    rankings = update_team_elo(slug, rankings, new_roster, avg_elo, league)
-    rankings = update_team_last_game(slug, rankings)
+def update_team(slug, rankings, new_roster, avg_elo, league, tournament):
+    rankings = update_team_elo(slug, rankings, new_roster, avg_elo, league, tournament)
+    rankings = update_team_last_game(slug, rankings, tournament)
     rankings = update_team_league(slug, rankings, league)
     return rankings
 
@@ -228,7 +232,7 @@ def get_importance(leagueId, stage_name):
 
     return importance
 
-def leagueId_to_region(leagueId):
+def leagueId_to_league(leagueId):
     leagues_dict = get_major_leagues()
     return leagues_dict[leagues_dict['id'] == leagueId]['league'].iat[0]
         
@@ -252,8 +256,8 @@ def calculate_tournament(tournament, rankings, league):
                         continue
                     roster1, roster2 = rosters_from_game(game)
                     if len(roster1) != 0:
-                        rankings = update_team(id_to_slug(teams['100']), rankings, roster1, avg_elo, league)
-                        rankings = update_team(id_to_slug(teams['200']), rankings, roster2, avg_elo, league)
+                        rankings = update_team(id_to_slug(teams['100']), rankings, roster1, avg_elo, league, tournament)
+                        rankings = update_team(id_to_slug(teams['200']), rankings, roster2, avg_elo, league, tournament)
                     # should probably include a check here in case one of the teams is new (not in rankings)
                     # but also doesn't have any players in mapping_data, i.e., the update_team call
                     # above hasn't happened. this team will not have an elo in rankings (or even an entry)
@@ -279,11 +283,6 @@ def calculate_tournament(tournament, rankings, league):
                         if (tournament['leagueId'] not in inter_tours) and (stage['name'] not in playoffs_key):
                             rankings.loc[rankings['slug'] == id_to_slug(teams['100']), 'elo'] = calculate_elo_change(elo1, elo2, get_importance(tournament['leagueId'], stage['name']), 0)
                         rankings.loc[rankings['slug'] == id_to_slug(teams['200']), 'elo'] = calculate_elo_change(elo2, elo1, get_importance(tournament['leagueId'], stage['name']), 1)
-
-                    if (id_to_slug(teams['100']) == 'jd-gaming') or (id_to_slug(teams['200']) == 'jd-gaming'):
-                        print(game['id'])
-                        print(rankings.loc[rankings['slug'] == 'jd-gaming', 'elo'].item())
-                        print_rosters(rankings[rankings['slug']=='jd-gaming'])
 
                     # how do we assign elo change to individual players?
                     # simplest way is to just set the player's elo to the team's new elo
@@ -374,10 +373,10 @@ tournaments_data = ordered_list_main_tournaments()
 
 for tournament in tournaments_data:
     print(tournament['name'])
-    rankings = calculate_tournament(tournament, rankings, leagueId_to_region(tournament['leagueId']))
+    rankings = calculate_tournament(tournament, rankings, leagueId_to_league(tournament['leagueId']))
 
 # rankings = calculate_tournament(tournaments_data[0], rankings, 'LEC')
-# calculate_tournament(tournaments_data[0], rankings, leagueId_to_region(tournaments_data[0]['leagueId']))
+# calculate_tournament(tournaments_data[0], rankings, leagueId_to_league(tournaments_data[0]['leagueId']))
 
 # potentially add some modifier or winstreaks (within the tournament?)
 # will be hard to add winstreaks as games aren't always in order in tournaments.json
