@@ -1,4 +1,3 @@
-# should make helper functions that convert team id to name, etc.
 import pandas as pd
 from datetime import datetime
 import json

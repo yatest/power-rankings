@@ -10,27 +10,27 @@ import re
 worlds_rankings = {
     "funplus-phoenix": 1600,
     "g2-esports": 1596,
-    "invictus-gaming": 1592,
+    "invictus-gaming": 1588,
     "t1": 1588, # SK Telecom T1
-    "griffin": 1584,
-    "fnatic": 1580,
-    "mad-lions": 1576, # Splyce
+    "griffin": 1572,
+    "fnatic": 1527,
+    "mad-lions": 1572, # Splyce
     "dwg-kia": 1572, # DAMWON
-    "taipei-j-team": 1568,
-    "cloud9": 1564,
-    "royal-never-give-up": 1560,
+    "taipei-j-team": 1556,
+    "cloud9": 1556,
+    "royal-never-give-up": 1556,
     "team-liquid": 1556,
-    "gam-esports": 1552,
-    "hong-kong-attitude": 1548,
-    "dignitas": 1544, # Clutch
+    "gam-esports": 1540,
+    "hong-kong-attitude": 1540,
+    "dignitas": 1540, # Clutch
     "ahq-esports-club": 1540,
-    "lowkey-esports": 1536,
-    "royal-bandits-e-sports": 1532,
-    "isurus": 1528,
+    "lowkey-esports": 1524,
+    "royal-bandits-e-sports": 1524,
+    "isurus": 1524,
     "unicorns-of-love": 1524,
-    "detonation-focusme": 1520,
-    "mammoth": 1516,
-    "mega-esports": 1512, # disbands after Worlds 2019
+    "detonation-focusme": 1508,
+    "mammoth": 1508,
+    "mega-esports": 1508, # disbands after Worlds 2019
     "flamengo-esports": 1508
 }
 
@@ -118,7 +118,7 @@ def find_team_api(rankings, api_team, api_team_no_space, team_slug, teams_data, 
 
 def find_team_api_word(rankings, api_team, team_slug, teams_data, found_team):
     # check each word in api_team for matches
-    if  found_team:
+    if found_team:
         return rankings, team_slug, found_team
     for word in api_team.lower().split():
         count = 0
@@ -186,18 +186,13 @@ def find_team_acronym(rankings, tr, team_slug, teams_data, found_team):
     # compare acronyms
     if found_team:
         return rankings, team_slug, found_team
-    # https://lol.fandom.com/wiki/Data:Teamnames
-    # https://lol.fandom.com/wiki/Special:RunQuery/TeamnamesPageFinder
-    # try and find what acronym is given for the team on lol.fandom and compare
-    # to those given in teams.json
+
     team_link = tr.find('td',{'class':'spstats-team'}).find('a')['href'][6:]
     team_link_underscore_to_space = team_link.replace('_', ' ')
-    #https://lol.fandom.com/wiki/Special:RunQuery/TeamnamesPageFinder?pfRunQueryFormName=TeamnamesPageFinder&TPF%5BLink%5D=lowkey+esports.vietnam
     payload = {'pfRunQueryFormName': 'TeamnamesPageFinder',
                 'TPF[Link]': team_link_underscore_to_space}
     data = requests.get('https://lol.fandom.com/wiki/Special:RunQuery/TeamnamesPageFinder', params=payload)
-    # might not be able to access this page using API
-    # probably will just have to scrape it
+
     soup = BeautifulSoup(data._content,'html.parser')
     
     table = soup.find('table')
